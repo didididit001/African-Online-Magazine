@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>AFRICAN · The Saint Bill Issue</title>
+<style>
+  :root { --W: 600px; --H: 800px; --accent: #3ddc6a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; color: #eee;
+    background: radial-gradient(ellipse at 50% 35%, #2b2d34 0%, #14151a 65%, #0b0b0e 100%);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+  /* ---------- stage / zoom ---------- */
+  #stage { position: absolute; inset: 0 0 60px 0; overflow: hidden; touch-action: none;
+    user-select: none; -webkit-user-select: none; }
+  #stage { cursor: grab; } #stage.panning { cursor: grabbing; }
+  #fit { position: absolute; left: 50%; top: 50%; width: calc(var(--W) * 2); height: var(--H);
+    transform-origin: 50% 50%; transition: opacity .16s; }
+  #fit.fade { opacity: 0; }
+  #book { position: relative; width: 100%; height: 100%; }
+
+  /* ---------- pages ---------- */
+  .slot { position: absolute; top: 0; width: var(--W); height: var(--H); }
+  #slotL { left: 0; } #slotR { left: var(--W); }
+  .slot.has { box-shadow: 0 16px 48px rgba(0,0,0,.55); }
+  .page { position: absolute; inset: 0; background: #fff; overflow: hidden; isolation: isolate; }
+  .page.blank { background: linear-gradient(90deg, #e9e5dd, #f4f1ea 40%, #e9e5dd); }
+  .page::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 9; }
+  .page.r::after { background: linear-gradient(to right, rgba(0,0,0,.30), rgba(0,0,0,0) 6.5%); }
+  .page.l::after { background: linear-gradient(to left,  rgba(0,0,0,.30), rgba(0,0,0,0) 6.5%); }
+  .page .pg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+    -webkit-user-drag: none; pointer-events: none; }
+  .page .pg.contain { object-fit: contain; }
+  .page .bgblur { position: absolute; inset: -6%; width: 112%; height: 112%; object-fit: cover;
+    filter: blur(26px) brightness(.7); pointer-events: none; }
+  .page .content { position: absolute; inset: 0; }
+
+  .tag { position: absolute; left: 26px; bottom: 86px; max-width: 78%; color: #fff; pointer-events: none;
+    text-shadow: 0 2px 16px rgba(0,0,0,.6); z-index: 4; }
+  .tag small { display: block; font: 700 11px/1 system-ui, sans-serif; letter-spacing: .28em; color: var(--accent); margin-bottom: 8px; }
+  .tag b { display: block; font: 400 46px/.92 Impact, "Arial Narrow", "Helvetica Neue", sans-serif;
+    text-transform: uppercase; letter-spacing: .01em; }
+  .scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 34%; z-index: 3; pointer-events: none;
+    background: linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,0)); }
+  .folio { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; z-index: 5; display: flex;
+    align-items: flex-end; justify-content: space-between; padding: 0 22px 16px; pointer-events: none;
+    font: 600 10.5px/1 system-ui, sans-serif; letter-spacing: .2em; text-transform: uppercase; color: rgba(255,255,255,.92);
+    text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+  .page.l .folio { flex-direction: row; } .page.r .folio { flex-direction: row-reverse; }
+  .folio .n { font-weight: 800; font-size: 13px; color: var(--accent); }
+  .play { position: absolute; left: 50%; top: 45%; width: 98px; height: 98px; margin: -49px 0 0 -49px; z-index: 4;
+    border-radius: 50%; border: 2px solid rgba(255,255,255,.95); background: rgba(0,0,0,.42);
+    backdrop-filter: blur(4px); pointer-events: none; }
+  .play::after { content: ""; position: absolute; left: 39px; top: 29px; border-style: solid;
+    border-width: 20px 0 20px 32px; border-color: transparent transparent transparent #fff; }
+
+  /* hotspots */
+  .hs { position: absolute; z-index: 10; cursor: pointer; border-radius: 8px; outline: 2px solid transparent;
+    transition: background .2s, outline-color .2s; }
+  .hs:hover, .hs:focus-visible { background: rgba(61,220,106,.16); outline-color: rgba(61,220,106,.85); }
+  body.hint .hs { animation: pulse 2s ease-in-out 3; }
+  @keyframes pulse { 50% { background: rgba(61,220,106,.22); } }
+  [data-goto], [data-url] { cursor: pointer; }
+
+  /* editorial HTML pages */
+  .wc, .bc { position: absolute; inset: 0; display: flex; flex-direction: column; color: #f4f0e8; padding: 64px 52px 70px;
+    background: radial-gradient(120% 80% at 15% 0%, #1f4a31 0%, #0d110e 58%); }
+  .bc { justify-content: center; align-items: center; text-align: center; padding: 60px;
+    background: radial-gradient(100% 70% at 50% 100%, #1f4a31 0%, #0b0d0c 62%); }
+  .wc .k, .bc .k { font: 700 11px/1 system-ui, sans-serif; letter-spacing: .3em; color: var(--accent); }
+  .wc h1, .bc h1 { margin: 18px 0 0; font: 400 92px/.88 Impact, "Arial Narrow", sans-serif; text-transform: uppercase; letter-spacing: .005em; }
+  .bc h1 { font-size: 78px; }
+  .wc p, .bc p { font: 400 17px/1.55 Georgia, serif; color: rgba(244,240,232,.78); max-width: 420px; margin: 22px 0 0; }
+  .wc ul { list-style: none; padding: 0; margin: 30px 0 0; border-top: 1px solid rgba(255,255,255,.18); }
+  .wc li { display: flex; justify-content: space-between; align-items: baseline; padding: 13px 2px;
+    border-bottom: 1px solid rgba(255,255,255,.18); font: 700 15px/1 system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; }
+  .wc li a:hover { color: var(--accent); } .wc li i { font-style: normal; color: var(--accent); font-size: 13px; }
+  .btn { display: inline-block; margin-top: 30px; padding: 15px 26px; border-radius: 999px; background: var(--accent); color: #07140b;
+    font: 800 14px/1 system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; align-self: flex-start; }
+  .bc .btn { align-self: center; }
+
+  /* ---------- page-turn layer ---------- */
+  #turn { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+  #topHolder { position: absolute; left: var(--W); top: 0; width: var(--W); height: var(--H); }
+  #flap { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  #flap.shadow { filter: drop-shadow(-4px 6px 10px rgba(0,0,0,.42)); }
+  .tw { position: absolute; left: 0; top: 0; width: calc(var(--W) * 2); height: var(--H); }
+  .tc { position: absolute; left: 0; top: 0; width: var(--W); height: var(--H); transform-origin: 0 0; }
+  .sh { position: absolute; inset: 0; pointer-events: none; }
+
+  /* ---------- toolbar ---------- */
+  #bar { position: absolute; left: 0; right: 0; bottom: 0; height: 60px; display: flex; align-items: center;
+    justify-content: center; gap: 8px; padding: 0 10px; background: rgba(0,0,0,.4); backdrop-filter: blur(10px); }
+  #bar button { background: #2a2c33; color: #fff; border: 0; border-radius: 10px; height: 38px; min-width: 40px;
+    padding: 0 11px; font-size: 16px; cursor: pointer; white-space: nowrap; }
+  #bar button:hover { background: #3a3d47; } #bar button:disabled { opacity: .35; cursor: default; }
+  #bar button.on { background: var(--accent); color: #08150c; }
+  #bar .sep { width: 1px; height: 24px; background: rgba(255,255,255,.18); margin: 0 4px; }
+  #ind { min-width: 84px; text-align: center; font-variant-numeric: tabular-nums; font-size: 13px; opacity: .9; }
+  #zl { min-width: 46px; text-align: center; font-size: 12px; opacity: .85; font-variant-numeric: tabular-nums; }
+  /* page scrubber: click or drag along the bar to jump anywhere, back to front */
+  #scrub { position: absolute; left: 0; right: 0; bottom: 60px; height: 22px; z-index: 6; cursor: pointer; touch-action: none; }
+  #scrub::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.14); transition: height .12s; }
+  #scrub:hover::before, #scrub.drag::before { height: 6px; }
+  #prog { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); width: 0; transition: width .25s, height .12s; pointer-events: none; }
+  #scrub:hover #prog, #scrub.drag #prog { height: 6px; }
+  #knob { position: absolute; bottom: -3px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,0,0,.35); opacity: 0; transition: opacity .12s; pointer-events: none; }
+  #scrub:hover #knob, #scrub.drag #knob { opacity: 1; }
+  #tip { position: absolute; bottom: 16px; transform: translateX(-50%); background: #fff; color: #111; font: 700 12px/1 system-ui, sans-serif;
+    padding: 6px 9px; border-radius: 7px; display: none; white-space: nowrap; pointer-events: none; }
+  #reset { position: absolute; top: 12px; right: 12px; z-index: 20; display: none; border: 0; border-radius: 999px; padding: 9px 14px;
+    background: rgba(0,0,0,.55); color: #fff; font: 700 12px/1 system-ui, sans-serif; letter-spacing: .06em; cursor: pointer; backdrop-filter: blur(8px); }
+  #reset:hover { background: rgba(0,0,0,.75); }
+  #stage.hand { cursor: grab; }
+  @media (max-width: 480px) { #fs, #hand { display: none; } }
+  @media (max-width: 780px) { #first, #last, #zl, .sep { display: none; } #bar { gap: 4px; padding: 0 6px; } #bar button { min-width: 36px; padding: 0 8px; font-size: 15px; } #play { font-size: 13px !important; } #ind { min-width: 56px; font-size: 12px; } }
+
+  /* ---------- media modal ---------- */
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.86); display: none; z-index: 1000;
+    align-items: center; justify-content: center; padding: 3vw; }
+  #modal.open { display: flex; }
+  #modal .box { position: relative; width: min(1100px, 100%); aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
+  #modal .box.vid { width: auto; aspect-ratio: auto; background: none; overflow: visible; }
+  #modal iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  #modal video { display: block; max-width: 92vw; max-height: 86vh; border-radius: 12px; background: #000; }
+  #modal .x { position: absolute; top: -14px; right: -14px; z-index: 2; background: #fff; color: #000; border: 0;
+    border-radius: 50%; width: 38px; height: 38px; font-size: 20px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+  #modal .box:not(.vid) .x { top: 12px; right: 12px; }
+</style>
+</head>
+<body class="hint">
+
+<div id="stage"><div id="fit"><div id="book">
+  <div id="slotL" class="slot"></div>
+  <div id="slotR" class="slot"></div>
+  <div id="turn"><div id="topHolder"></div><div id="flap"></div></div>
+</div></div></div>
+
+<div id="scrub"><div id="prog"></div><div id="knob"></div><div id="tip"></div></div>
+<button id="reset" title="Fit magazine to window (0)">⟲ Fit to window</button>
+<div id="bar">
+  <button id="first" title="First page">⏮</button>
+  <button id="prev"  title="Previous page (←)">◀</button>
+  <span id="ind"></span>
+  <button id="next"  title="Next page (→)">▶</button>
+  <button id="last"  title="Last page">⏭</button>
+  <span class="sep"></span>
+  <button id="zout" title="Zoom out (−)">−</button>
+  <button id="zl" title="Fit to window (0)">100%</button>
+  <button id="zin"  title="Zoom in (+)">+</button>
+  <span class="sep"></span>
+  <button id="hand" title="Move tool: drag anywhere to move the magazine (H)">✋</button>
+  <button id="mode" title="Spread / single page (V)">📖</button>
+  <button id="play" title="Auto-flip (Space)">▶ Auto</button>
+  <button id="web"  title="Visit website">🌐</button>
+  <button id="fs"   title="Fullscreen (F)">⛶</button>
+</div>
+
+<div id="modal"><div class="box" id="mbox"><button class="x" aria-label="Close">×</button><div id="mbody"></div></div></div>
+
+<script>
+/* ===================================================================
+   CONFIG — edit this block
+   =================================================================== */
+const CONFIG = {
+  title: "AFRICAN · The Saint Bill Issue",
+  pageWidth: 600,            // page aspect ratio (width x height) – matches the 3:4 covers
+  pageHeight: 800,
+  websiteUrl: "https://virgo9-15.com/index.php",
+  websiteLabel: "virgo9-15.com",
+
+  autoFlipSeconds: 5,        // seconds per page when Auto is on
+  autoStart: false,
+  loop: true,
+
+  flipMs: 1000,              // page-turn duration
+  curlRadius: 0.085,         // roll radius as a fraction of page width (bigger = fatter curl)
+  curlLift: 0.16,            // how much the corner swings up during a turn (fraction of page height)
+  curlShadow: true,          // soft shadow under the turning page
+  hoverPeek: true,           // corner lifts slightly when the mouse nears it
+
+  minZoom: 0.35,             // you can shrink the magazine below 'fit' and drag it anywhere
+  maxZoom: 4,
+  accent: "#3ddc6a",
+
+  frontCover: "random",      // "random" or 0–5 (index in COVERS below)
+  seed: null                 // null = new random order every visit; a number freezes the order. ?seed=7 in the URL also works
+};
+
+/* ---- the six sample covers (shuffled: one becomes the front cover, five land at random inside) ---- */
+const COVERS = [
+  { img: "pages/cover-1-red-satin.jpg", name: "Satin Season" },
+  { img: "pages/cover-2-varsity.jpg",   name: "Home Run Style" },
+  { img: "pages/cover-3-tracksuit.jpg", name: "Track Royalty" },
+  { img: "pages/cover-4-leather.jpg",   name: "Built in Leather" },
+  { img: "pages/cover-5-hoodie.jpg",    name: "Night Shift" },
+  { img: "pages/cover-6-tees.jpg",      name: "Summer Colours" }
+];
+
+/* ---- interior pages in reading order (covers are inserted among these at random) ----
+   photo : { img, tag, pos, fit }          pos = CSS object-position, fit:"blur" = whole photo on a blurred backdrop
+   video : { img: poster, video: "media/x.mp4", tag, fit, pos }  → tap to play in a pop-up                         */
+const INTERIOR = [
+  { id: "varsity", img: "pages/model-3.jpg", tag: "Varsity Jersey", pos: "50% 8%" },
+  { img: "pages/model-1.jpg", tag: "Varsity Jersey", pos: "50% 40%" },
+  { img: "pages/model-2.jpg", tag: "Varsity Jersey", pos: "50% 40%" },
+  { id: "video", img: "media/posters/home-run-style.jpg", video: "media/home-run-style.mp4", tag: "Home Run Style" },
+  { id: "street", img: "pages/model-4.jpg", tag: "Street Set", fit: "blur" },
+  { img: "media/posters/track-royalty.jpg", video: "media/track-royalty.mp4", tag: "Track Royalty", fit: "blur" },
+  { id: "tee", img: "pages/model-5.jpg", tag: "The SB Tee", pos: "50% 8%" },
+  { img: "pages/model-6.jpg", tag: "The Beanie", pos: "50% 25%" },
+  { img: "pages/model-7.jpg", tag: "Street Style", pos: "50% 50%" },
+  { id: "tote", img: "pages/model-8.jpg", tag: "The SB Tote", pos: "50% 28%" },
+  { img: "media/posters/satin-season.jpg", video: "media/satin-season.mp4", tag: "Satin Season" },
+  { img: "media/posters/night-shift.jpg", video: "media/night-shift.mp4", tag: "Night Shift" }
+];
+
+/* ===================================================================
+   BUILD THE MAGAZINE
+   =================================================================== */
+const WEB = CONFIG.websiteUrl;
+const COVER_LINKS = [   // the "Published by Virgo 9:15" badge and the QR code on every cover
+  { x: 5.5, y: 85,   w: 22.5, h: 11,   url: WEB, title: "Published by Virgo 9:15 — visit " + CONFIG.websiteLabel },
+  { x: 77,  y: 83,   w: 17.5, h: 12.7, url: WEB, title: "Visit " + CONFIG.websiteLabel }
+];
+
+function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const urlSeed = new URLSearchParams(location.search).get("seed");
+const seed = urlSeed != null ? +urlSeed : (CONFIG.seed != null ? CONFIG.seed : Math.floor(Math.random() * 4294967296));
+const rand = rng(seed);
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+const pagesDef = (() => {
+  const covers = COVERS.map(c => ({ img: c.img, tag: null, folio: false, hotspots: COVER_LINKS, name: c.name, isCover: true }));
+  let order = shuffle(covers.map((_, i) => i));
+  if (CONFIG.frontCover !== "random") { const fc = +CONFIG.frontCover; order = [fc, ...order.filter(i => i !== fc)]; }
+  const front = covers[order[0]], inner = order.slice(1).map(i => covers[i]);
+
+  const items = INTERIOR.map(it => ({
+    id: it.id, img: it.img, pos: it.pos, fit: it.fit, tag: it.tag, scrim: true,
+    play: !!it.video,
+    hotspots: it.video ? [{ x: 12, y: 18, w: 76, h: 58, url: it.video, title: "Play video — " + it.tag }] : []
+  }));
+
+  // drop the covers into distinct random gaps (so no two covers sit side by side)
+  const gaps = shuffle([...Array(items.length + 1).keys()]).slice(0, inner.length).sort((a, b) => b - a);
+  const seq = items.slice();
+  gaps.forEach((g, n) => seq.splice(g, 0, inner[n]));
+
+  const NUM = p => String(p + 1).padStart(2, "0");
+  const at = id => seq.indexOf(seq.find(x => x.id === id)) + 2;   // +2: front cover (0) and welcome page (1) come first
+  const firstVideo = seq.findIndex(x => x.play) + 2;
+
+  const welcome = { folio: false, html: `
+    <div class="wc">
+      <div class="k">FASHION FORWARD MAGAZINE</div>
+      <h1>The<br>Saint Bill<br>Issue</h1>
+      <p>Six covers. One issue. Turn the pages, watch the covers move, and find everything at ${CONFIG.websiteLabel}.</p>
+      <ul>
+        <li><a data-goto="${at("varsity")}">Varsity Jersey</a><i>${NUM(at("varsity"))}</i></li>
+        <li><a data-goto="${at("street")}">Street Set</a><i>${NUM(at("street"))}</i></li>
+        <li><a data-goto="${firstVideo}">Covers in Motion</a><i>${NUM(firstVideo)}</i></li>
+        <li><a data-goto="${at("tee")}">Tees &amp; Beanies</a><i>${NUM(at("tee"))}</i></li>
+        <li><a data-goto="${at("tote")}">The Tote</a><i>${NUM(at("tote"))}</i></li>
+      </ul>
+      <a class="btn" data-url="${WEB}">${CONFIG.websiteLabel} ↗</a>
+    </div>` };
+
+  const back = { folio: false, html: `
+    <div class="bc">
+      <div class="k">PUBLISHED BY</div>
+      <h1>Virgo<br>9:15</h1>
+      <p>Thank you for reading The Saint Bill Issue.</p>
+      <a class="btn" data-url="${WEB}">Visit ${CONFIG.websiteLabel} ↗</a>
+    </div>` };
+
+  const arr = [front, welcome, ...seq];
+  if ((arr.length + 1) % 2) arr.push({ folio: false, html: '<div class="bc"></div>' });   // keep the page count even
+  arr.push(back);
+  return arr;
+})();
+
+/* ===================================================================
+   ENGINE
+   =================================================================== */
+(() => {
+  const W = CONFIG.pageWidth, H = CONFIG.pageHeight, PI = Math.PI, NP = pagesDef.length;
+  const root = document.documentElement;
+  root.style.setProperty("--W", W + "px"); root.style.setProperty("--H", H + "px");
+  root.style.setProperty("--accent", CONFIG.accent);
+  document.title = CONFIG.title;
+
+  const $ = s => document.querySelector(s);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const stage = $("#stage"), fit = $("#fit"), book = $("#book"), slotL = $("#slotL"), slotR = $("#slotR"),
+        topHolder = $("#topHolder"), flap = $("#flap"), modal = $("#modal");
+  if (CONFIG.curlShadow) flap.classList.add("shadow");
+  pagesDef.forEach(d => { if (d && d.img) { const i = new Image(); i.src = d.img; } });   // preload
+
+  /* ---------- state ---------- */
+  let single = null, f = 0, T = null, anim = false, Z = 1, panX = 0, panY = 0, S = 1, G = null,
+      timer = null, suppressClick = false, moveTool = false, viewMode = "auto";
+  try { viewMode = localStorage.getItem("fbMode") || "auto"; } catch (e) {}
+  const nodes = new Map();
+  const maxF = () => single ? NP - 1 : NP / 2;
+  const shiftFor = ff => single ? -W / 2 : (ff === 0 ? -W / 2 : ff === NP / 2 ? W / 2 : 0);
+  const curPage = () => single ? f : (f === 0 ? 0 : f >= NP / 2 ? NP - 1 : 2 * f);
+  const fFromPage = p => single ? p : Math.ceil(p / 2);
+  const frontIdx = k => single ? k : 2 * k;
+  const backIdx  = k => single ? -1 : 2 * k + 1;
+  const leftIdxFor  = k => single ? -1 : (k > 0 ? 2 * k - 1 : -1);
+  const underIdxFor = k => { const u = single ? k + 1 : 2 * k + 2; return u <= NP - 1 ? u : -1; };
+  const leftIdxRest  = ff => single ? -1 : (ff > 0 ? 2 * ff - 1 : -1);
+  const rightIdxRest = ff => single ? ff : (ff < NP / 2 ? 2 * ff : -1);
+  const modalOpen = () => modal.classList.contains("open");
+
+  /* ---------- page nodes ---------- */
+  function makePageNode(idx) {
+    const def = pagesDef[idx], side = single ? "r" : (idx % 2 === 0 ? "r" : "l");
+    const n = document.createElement("div"); n.className = "page " + side;
+    if (!def) { n.classList.add("blank"); return n; }
+    if (def.img) {
+      if (def.fit === "blur") {
+        const bg = new Image(); bg.className = "bgblur"; bg.alt = ""; bg.src = def.img; bg.draggable = false; n.appendChild(bg);
+      }
+      const im = new Image(); im.className = "pg" + (def.fit === "blur" ? " contain" : ""); im.alt = def.name || def.tag || "";
+      im.draggable = false; im.src = def.img; im.style.objectPosition = def.pos || "50% 50%"; n.appendChild(im);
+    }
+    if (def.html) { const c = document.createElement("div"); c.className = "content"; c.innerHTML = def.html; n.appendChild(c); }
+    if (def.scrim) { const s = document.createElement("div"); s.className = "scrim"; n.appendChild(s); }
+    if (def.play) { const p = document.createElement("div"); p.className = "play"; n.appendChild(p); }
+    if (def.tag) { const t = document.createElement("div"); t.className = "tag";
+      t.innerHTML = `<small>${def.play ? "▶ WATCH" : "SAINT BILL"}</small><b>${def.tag}</b>`; n.appendChild(t); }
+    if (def.folio !== false) {
+      const fo = document.createElement("div"); fo.className = "folio";
+      fo.innerHTML = `<span class="n">${String(idx + 1).padStart(2, "0")}</span><span>${CONFIG.websiteLabel}</span><span>Saint Bill Issue</span>`;
+      n.appendChild(fo);
+      const link = document.createElement("div"); link.className = "hs"; link.dataset.url = WEB; link.title = "Visit " + CONFIG.websiteLabel;
+      Object.assign(link.style, { left: "32%", top: "93.2%", width: "36%", height: "5%" }); n.appendChild(link);
+    }
+    (def.hotspots || []).forEach(h => {
+      const a = document.createElement("div"); a.className = "hs"; a.tabIndex = 0; a.title = h.title || "";
+      a.setAttribute("role", "link");
+      Object.assign(a.style, { left: h.x + "%", top: h.y + "%", width: h.w + "%", height: h.h + "%" });
+      if (h.url) a.dataset.url = h.url; if (h.goto != null) a.dataset.goto = h.goto;
+      n.appendChild(a);
+    });
+    return n;
+  }
+  const getNode = idx => { let n = nodes.get(idx); if (!n) { n = makePageNode(idx); nodes.set(idx, n); } return n; };
+  function setSlot(slot, idx) { slot.replaceChildren(); if (idx >= 0) slot.appendChild(getNode(idx)); slot.classList.toggle("has", idx >= 0); }
+
+  /* ---------- geometry helpers ---------- */
+  function clipHalf(poly, w, c, keepGE) {
+    const out = [], n = poly.length, sgn = keepGE ? 1 : -1;
+    for (let i = 0; i < n; i++) {
+      const a = poly[i], b = poly[(i + 1) % n];
+      const sa = sgn * (a.x * w.x + a.y * w.y - c), sb = sgn * (b.x * w.x + b.y * w.y - c);
+      if (sa >= 0) out.push(a);
+      if ((sa >= 0) !== (sb >= 0)) { const t = sa / (sa - sb); out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }); }
+    }
+    return out;
+  }
+  const area = poly => { let s = 0; for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; s += a.x * b.y - b.x * a.y; } return Math.abs(s) / 2; };
+  const polyStr = poly => "polygon(" + poly.map(p => p.x.toFixed(2) + "px " + p.y.toFixed(2) + "px").join(",") + ")";
+  const RECT = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
+
+  /* ---------- the curl ----------
+     A turning sheet is described in "sheet space": origin at the spine, x grows toward the outer edge.
+     P is where the sheet's free corner C=(W,cy) has been dragged to.
+     The page rolls over a cylinder of radius r whose line sits at q_c along the peel direction w:
+       q <= q_c           : still flat (front face)
+       q_c .. q_c+πr/2    : hidden underneath the roll
+       q_c+πr/2 .. q_c+πr : half-cylinder, back face visible, foreshortened by cos  (K strips)
+       q >= q_c+πr        : flat again on top, mirrored (back face)                                     */
+  const KS = 12;
+  function beginTurn(k, cy) {
+    if (T) endTurn();
+    T = { k, cy, t: 0, P: { x: W, y: cy }, strips: [], hover: false };
+    setSlot(slotL, leftIdxFor(k)); setSlot(slotR, underIdxFor(k));
+    topHolder.replaceChildren(); T.top = getNode(frontIdx(k)); topHolder.appendChild(T.top);
+    flap.replaceChildren();
+    for (let j = 0; j <= KS; j++) {
+      const el = document.createElement("div"); el.className = "tw";
+      const c = document.createElement("div"); c.className = "tc";
+      c.appendChild(makePageNode(backIdx(k)));
+      const sh = document.createElement("div"); sh.className = "sh";
+      el.append(c, sh); flap.appendChild(el); T.strips.push({ el, c, sh });
+    }
+  }
+  function endTurn() {
+    if (!T) return;
+    T.top.style.clipPath = ""; T.top.style.visibility = "";
+    topHolder.replaceChildren(); flap.replaceChildren(); T = null;
+  }
+  const pathY = (cy, t) => cy + (cy === 0 ? 1 : -1) * CONFIG.curlLift * H * Math.sin(PI * t);
+
+  function drawTurn(Pt) {
+    const k = T.k, cy = T.cy, C = { x: W, y: cy };
+    const dx = C.x - Pt.x, dy = C.y - Pt.y, d = Math.hypot(dx, dy);
+    const t = clamp((W - Pt.x) / (2 * W), 0, 1);
+    T.t = t; T.P = Pt;
+    book.style.transform = `translateX(${lerp(shiftFor(k), shiftFor(k + 1), t)}px)`;
+    applyView();      // the whole magazine rescales smoothly as a spread opens / closes
+    if (d < 0.5) {
+      T.top.style.clipPath = "none"; T.top.style.visibility = "visible";
+      T.strips.forEach(s => s.el.style.display = "none"); return;
+    }
+    const w = { x: dx / d, y: dy / d };
+    const env = Math.pow(Math.max(0, Math.sin(PI * t)), 0.7);
+    let r = Math.min(CONFIG.curlRadius * W * env, d / PI); if (r < 0.75) r = 0;
+    const qC = C.x * w.x + C.y * w.y, qP = Pt.x * w.x + Pt.y * w.y;
+    const qc = (qP + qC - PI * r) / 2;
+
+    // static front face
+    const st = clipHalf(RECT, w, qc, false);
+    if (area(st) < 1) T.top.style.visibility = "hidden";
+    else { T.top.style.visibility = "visible"; T.top.style.clipPath = polyStr(st); }
+
+    const place = (s, src, a, b, dark) => {
+      if (area(src) < 0.5) { s.el.style.display = "none"; return; }
+      const kk = a - 1, M00 = 1 + kk * w.x * w.x, M01 = kk * w.x * w.y, M11 = 1 + kk * w.y * w.y;
+      const tx = b * w.x, ty = b * w.y;
+      s.el.style.display = "block";
+      s.el.style.clipPath = polyStr(src.map(p => ({ x: W + M00 * p.x + M01 * p.y + tx, y: M01 * p.x + M11 * p.y + ty })));
+      s.c.style.transform = `matrix(${-M00},${-M01},${M01},${M11},${M00 * W + tx + W},${M01 * W + ty})`;
+      s.sh.style.background = dark > 0.003 ? `rgba(0,0,0,${dark.toFixed(3)})` : "none";
+    };
+    for (let j = 0; j < KS; j++) {
+      const s = T.strips[j];
+      if (r === 0) { s.el.style.display = "none"; continue; }
+      const p1 = PI / 2 + (PI / 2) * j / KS, p2 = PI / 2 + (PI / 2) * (j + 1) / KS;
+      const s1 = qc + r * p1, s2 = qc + r * p2;
+      const src = clipHalf(clipHalf(RECT, w, s1, true), w, s2 + 1.4, false);   // +1.4: tiny overlap hides hairline seams
+      const q1 = qc + r * Math.sin(p1), q2 = qc + r * Math.sin(p2);
+      const a = (q2 - q1) / (s2 - s1), b = q1 - a * s1;
+      const u = ((p1 + p2) / 2 - PI / 2) / (PI / 2);
+      place(s, src, a, b, 0.34 * (1 - u) * (1 - u) + 0.015);
+    }
+    place(T.strips[KS], clipHalf(RECT, w, qc + PI * r, true), -1, 2 * qc + PI * r, 0.025);
+  }
+
+  /* ---------- animation ---------- */
+  function animate(ms, step, done) {
+    const t0 = performance.now(); anim = true;
+    (function loop(now) {
+      const u = Math.min(1, (now - t0) / ms), e = u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      step(e);
+      if (u < 1) requestAnimationFrame(loop); else { anim = false; done && done(); }
+    })(t0);
+  }
+  function finishTurn(toT) {
+    const k = T.k, cy = T.cy, t0 = T.t, dev0 = T.P.y - pathY(cy, t0);
+    T.hover = false;
+    animate(CONFIG.flipMs * Math.max(0.35, Math.abs(toT - t0)), e => {
+      const t = lerp(t0, toT, e);
+      drawTurn({ x: W - 2 * W * t, y: pathY(cy, t) + dev0 * (1 - e) });
+    }, () => { f = toT >= 0.5 ? k + 1 : k; endTurn(); renderRest(); restartAuto(); });
+  }
+  function turnNext() {
+    if (anim || G || f >= maxF()) return; cancelHover();
+    beginTurn(f, H); drawTurn({ x: W, y: H }); finishTurn(1);
+  }
+  function turnPrev() {
+    if (anim || G || f <= 0) return; cancelHover();
+    beginTurn(f - 1, H); drawTurn({ x: -W, y: H }); finishTurn(0);
+  }
+  function goPage(p) {
+    if (anim || G) return; cancelHover(); fit.classList.add("fade");
+    setTimeout(() => { f = fFromPage(clamp(p, 0, NP - 1)); endTurn(); renderRest(); fit.classList.remove("fade"); }, 170);
+    restartAuto();
+  }
+
+  /* ---------- rest state / UI ---------- */
+  function renderRest() {
+    setSlot(slotL, leftIdxRest(f)); setSlot(slotR, rightIdxRest(f));
+    book.style.transform = `translateX(${shiftFor(f)}px)`;
+    const shown = single ? `${f + 1}` : (f === 0 ? "1" : f >= NP / 2 ? `${NP}` : `${2 * f}–${2 * f + 1}`);
+    $("#ind").textContent = `${shown} / ${NP}`;
+    $("#prev").disabled = $("#first").disabled = f <= 0;
+    $("#next").disabled = $("#last").disabled = f >= maxF();
+    const pr = NP > 1 ? curPage() / (NP - 1) * 100 : 100;
+    $("#prog").style.width = pr + "%"; $("#knob").style.left = pr + "%";
+    try { history.replaceState(null, "", "#p=" + (curPage() + 1)); } catch (e) {}
+    applyView();
+  }
+
+  /* The fit scale depends on how much of the book is showing: a closed cover fills the window,
+     an open spread shrinks to fit it. While a page turns, the scale is blended so it animates smoothly. */
+  const vf = ff => (single || ff <= 0 || ff >= NP / 2) ? W : 2 * W;
+  const visWNow = () => T ? lerp(vf(T.k), vf(T.k + 1), T.t) : vf(f);
+  function curS() {
+    const vw = stage.clientWidth, vh = stage.clientHeight, fw = v => Math.min(vw * 0.97 / v, vh * 0.95 / H);
+    return T ? lerp(fw(vf(T.k)), fw(vf(T.k + 1)), T.t) : fw(vf(f));
+  }
+  function applyView() {
+    const vw = stage.clientWidth, vh = stage.clientHeight; S = curS();
+    const sc = S * Z, visW = visWNow() * sc, visH = H * sc;
+    const lx = Math.max(0, (vw + visW) / 2 - 90), ly = Math.max(0, (vh + visH) / 2 - 90);   // always keep a corner of the book in view
+    panX = clamp(panX, -lx, lx); panY = clamp(panY, -ly, ly);
+    fit.style.transform = `translate(-50%,-50%) translate(${panX}px,${panY}px) scale(${sc})`;
+    $("#zl").textContent = Math.round(Z * 100) + "%";
+    $("#zout").disabled = Z <= CONFIG.minZoom + 1e-6; $("#zin").disabled = Z >= CONFIG.maxZoom - 1e-6;
+    $("#reset").style.display = (Math.abs(Z - 1) > 0.01 || Math.abs(panX) > 1 || Math.abs(panY) > 1) ? "block" : "none";
+  }
+  function zoomAt(nz, cx, cy) {
+    nz = clamp(nz, CONFIG.minZoom, CONFIG.maxZoom);
+    const r = stage.getBoundingClientRect(), ox = cx - (r.left + r.width / 2), oy = cy - (r.top + r.height / 2), ratio = nz / Z;
+    panX = ox - ratio * (ox - panX); panY = oy - ratio * (oy - panY); Z = nz;
+    applyView();
+  }
+  const zoomCenter = nz => { const r = stage.getBoundingClientRect(); zoomAt(nz, r.left + r.width / 2, r.top + r.height / 2); };
+  function resetView() { Z = 1; panX = panY = 0; applyView(); }
+
+  function layout() {
+    const vw = stage.clientWidth, ns = viewMode === "single" || (viewMode === "auto" && vw < 520);
+    if (ns !== single) {
+      const p = single === null ? 0 : curPage(); single = ns; nodes.clear();
+      if (!anim) { if (T) endTurn(); f = fFromPage(p); }
+    }
+    $("#mode").textContent = single ? "📄" : "📖";
+    $("#mode").title = single ? "Single page — switch to double spread (V)" : "Double spread — switch to single page (V)";
+    if (!T && !anim) renderRest(); else applyView();
+  }
+  function setMode(m) {
+    if (anim || G) return; cancelHover(); viewMode = m;
+    try { localStorage.setItem("fbMode", m); } catch (e) {}
+    layout();
+  }
+
+  /* ---------- auto flip ---------- */
+  function setAuto(on) {
+    clearInterval(timer); timer = null;
+    $("#play").classList.toggle("on", on); $("#play").textContent = on ? "⏸ Auto" : "▶ Auto";
+    if (on) timer = setInterval(() => {
+      if (anim || G || T || Z > 1 || modalOpen() || document.hidden) return;
+      if (f >= maxF()) { CONFIG.loop ? goPage(0) : setAuto(false); } else turnNext();
+    }, CONFIG.autoFlipSeconds * 1000);
+  }
+  const restartAuto = () => { if (timer) setAuto(true); };
+
+  /* ---------- media / links ---------- */
+  function mediaHTML(url) {
+    let m;
+    if ((m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]{11})/)))
+      return { html: `<iframe src="https://www.youtube-nocookie.com/embed/${m[1]}?autoplay=1&rel=0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>` };
+    if ((m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)))
+      return { html: `<iframe src="https://player.vimeo.com/video/${m[1]}?autoplay=1" allow="autoplay; fullscreen" allowfullscreen></iframe>` };
+    if (/\.(mp4|webm|ogv|mov)(\?|$)/i.test(url)) return { html: `<video src="${url}" controls autoplay playsinline></video>`, vid: true };
+    return null;
+  }
+  function openUrl(url) {
+    const m = mediaHTML(url);
+    if (m) { $("#mbody").innerHTML = m.html; $("#mbox").classList.toggle("vid", !!m.vid); modal.classList.add("open"); }
+    else window.open(url, "_blank", "noopener");
+  }
+  function closeModal() { modal.classList.remove("open"); $("#mbody").innerHTML = ""; }
+  $("#modal .x").onclick = closeModal;
+  modal.addEventListener("click", e => { if (e.target === modal) closeModal(); });
+
+  stage.addEventListener("click", e => { if (suppressClick) { e.stopPropagation(); e.preventDefault(); } }, true);
+  book.addEventListener("click", e => {
+    const g = e.target.closest("[data-goto]");
+    if (g && g.dataset.goto !== "") { goPage(+g.dataset.goto); return; }
+    const u = e.target.closest("[data-url]");
+    if (u && u.dataset.url) openUrl(u.dataset.url);
+  });
+  book.addEventListener("keydown", e => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("hs")) { e.preventDefault(); e.target.click(); }
+  });
+
+  /* ---------- pointer interaction: drag-to-curl, pan, pinch, tap, hover-peek ---------- */
+  const ptrs = new Map(); let pinch = null;
+  const bookScale = () => book.getBoundingClientRect().width / (2 * W);
+  function toLocal(e) { const r = book.getBoundingClientRect(), s = r.width / (2 * W); return { x: (e.clientX - r.left) / s, y: (e.clientY - r.top) / s }; }
+
+  stage.addEventListener("pointerdown", e => {
+    if (modalOpen() || (e.pointerType === "mouse" && e.button > 0)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 2) {
+      if (G && G.mode === "curl" && T) finishTurn(G.dir > 0 ? 0 : 1);
+      G = null; const [a, b] = [...ptrs.values()];
+      pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, Z0: Z, c0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }; return;
+    }
+    if (ptrs.size > 2 || anim) return;
+    cancelHover();
+    G = { id: e.pointerId, x0: e.clientX, y0: e.clientY, l0: toLocal(e), s: bookScale(), mode: (moveTool || Z !== 1) ? "pan" : null,
+          moved: false, pan0: { x: panX, y: panY }, vx: 0, lx: e.clientX, lt: performance.now() };
+  });
+
+  window.addEventListener("pointermove", e => {
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && ptrs.size >= 2) {
+      const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y), c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      zoomAt(clamp(pinch.Z0 * d / pinch.d0, CONFIG.minZoom, CONFIG.maxZoom), c.x, c.y);
+      panX += c.x - pinch.c0.x; panY += c.y - pinch.c0.y; pinch.c0 = c; applyView(); return;
+    }
+    if (!G || e.pointerId !== G.id) { hoverMove(e); return; }
+    const dx = e.clientX - G.x0, dy = e.clientY - G.y0;
+    if (!G.moved) { if (Math.hypot(dx, dy) < 6) return; G.moved = true; suppressClick = true; if (G.mode === "pan") stage.classList.add("panning"); }
+    if (G.mode === null) {
+      let dir = 0;
+      if (Math.abs(dx) > Math.abs(dy) * 0.6) {
+        if (single) { if (dx < 0 && f < maxF()) dir = 1; else if (dx > 0 && f > 0) dir = -1; }
+        else if (dx < 0 && f < maxF() && G.l0.x >= 1.7 * W) dir = 1;       // drag from the outer edge of a page = turn it
+        else if (dx > 0 && f > 0 && G.l0.x <= 0.3 * W) dir = -1;
+      }
+      if (!dir) { G.mode = "pan"; stage.classList.add("panning"); }       // anywhere else = grab the magazine and move it
+      else {
+        G.dir = dir; G.cy = G.l0.y < H / 2 ? 0 : H; G.k = dir > 0 ? f : f - 1; G.C0 = { x: dir > 0 ? W : -W, y: G.cy };
+        beginTurn(G.k, G.cy); G.mode = "curl";
+      }
+    }
+    if (G.mode === "pan") { panX = G.pan0.x + dx; panY = G.pan0.y + dy; applyView(); }
+    else if (G.mode === "curl") {
+      const lim = 0.3 * H;
+      const px = clamp(G.C0.x + dx / G.s, -W, W);
+      const py = G.cy === H ? clamp(G.C0.y + dy / G.s, H - lim, H + 0.04 * H) : clamp(G.C0.y + dy / G.s, -0.04 * H, lim);
+      drawTurn({ x: px, y: py });
+      const now = performance.now(), dt = now - G.lt; if (dt > 0) G.vx = lerp(G.vx, (e.clientX - G.lx) / dt, 0.5);
+      G.lx = e.clientX; G.lt = now;
+    }
+  });
+
+  function handleTap(e) {
+    if (e.target.closest(".hs,[data-url],[data-goto],a,button") || Z > 1 || moveTool) return;
+    if (single) {
+      const r = stage.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width;
+      if (fx > 0.7) turnNext(); else if (fx < 0.3) turnPrev(); return;
+    }
+    const l = toLocal(e);
+    if (l.x >= 1.7 * W) turnNext(); else if (l.x <= 0.3 * W && f > 0) turnPrev();
+  }
+  function pointerEnd(e) {
+    ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
+    stage.classList.remove("panning");
+    if (!G || e.pointerId !== G.id) return;
+    const g = G; G = null;
+    if (g.mode === "curl" && T) {
+      const t = T.t, vx = g.vx;
+      const target = g.dir > 0 ? ((vx < -0.5 || (t > 0.3 && vx < 0.5)) ? 1 : 0) : ((vx > 0.5 || (t < 0.7 && vx > -0.5)) ? 0 : 1);
+      finishTurn(target);
+    } else if (!g.moved && e.type === "pointerup") handleTap(e);
+    setTimeout(() => { suppressClick = false; }, 0);
+  }
+  window.addEventListener("pointerup", pointerEnd);
+  window.addEventListener("pointercancel", pointerEnd);
+
+  stage.addEventListener("wheel", e => {
+    if (modalOpen()) return; e.preventDefault();
+    zoomAt(Z * Math.exp(-clamp(e.deltaY, -60, 60) * 0.012), e.clientX, e.clientY);
+  }, { passive: false });
+  stage.addEventListener("dblclick", e => {
+    if (e.target.closest(".hs,[data-url],[data-goto],a")) return;
+    if (Z !== 1) { resetView(); return; }
+    if (!single) { const l = toLocal(e); if (l.x >= 1.7 * W || l.x <= 0.3 * W) return; }
+    zoomAt(2.5, e.clientX, e.clientY);
+  });
+
+  /* hover: the nearest bottom corner lifts a little (mouse only) */
+  const hv = { amt: 0, tgt: 0, dir: 0, raf: 0 };
+  function hoverMove(e) {
+    if (!CONFIG.hoverPeek || e.pointerType !== "mouse" || single || anim || Z !== 1 || G || ptrs.size > 1 || modalOpen()) return;
+    const l = toLocal(e); let dir = 0;
+    if (f < maxF() && l.x >= 1.83 * W && l.x <= 2.04 * W && l.y >= 0.82 * H && l.y <= 1.04 * H) dir = 1;
+    else if (f > 0 && l.x <= 0.17 * W && l.x >= -0.04 * W && l.y >= 0.82 * H && l.y <= 1.04 * H) dir = -1;
+    if (dir !== 0) { if (hv.dir !== 0 && hv.dir !== dir) hv.tgt = 0; else { hv.dir = dir; hv.tgt = 1; } } else hv.tgt = 0;
+    if (!hv.raf) hv.raf = requestAnimationFrame(hoverStep);
+  }
+  function hoverStep() {
+    hv.raf = 0;
+    if (anim || G) return;
+    hv.amt += (hv.tgt - hv.amt) * 0.2; if (Math.abs(hv.tgt - hv.amt) < 0.01) hv.amt = hv.tgt;
+    if (hv.amt > 0) {
+      const k = hv.dir > 0 ? f : f - 1;
+      if (!T || !T.hover || T.k !== k) { beginTurn(k, H); T.hover = true; }
+      const px = 0.17 * W * hv.amt, py = 0.07 * H * hv.amt;
+      drawTurn(hv.dir > 0 ? { x: W - px, y: H - py } : { x: -W + px, y: H - py });
+      hv.raf = requestAnimationFrame(hoverStep);
+    } else { if (T && T.hover) { endTurn(); renderRest(); } hv.dir = 0; }
+  }
+  function cancelHover() {
+    if (hv.raf) { cancelAnimationFrame(hv.raf); hv.raf = 0; }
+    hv.amt = 0; hv.tgt = 0; hv.dir = 0;
+    if (T && T.hover) { endTurn(); renderRest(); }
+  }
+
+  /* ---------- toolbar + keyboard ---------- */
+  $("#prev").onclick = turnPrev; $("#next").onclick = turnNext;
+  $("#first").onclick = () => goPage(0); $("#last").onclick = () => goPage(NP - 1);
+  $("#zin").onclick = () => zoomCenter(Z * 1.4); $("#zout").onclick = () => zoomCenter(Z / 1.4);
+  $("#zl").onclick = resetView; $("#reset").onclick = resetView;
+  $("#mode").onclick = () => setMode(single ? "spread" : "single");
+  $("#hand").onclick = () => { moveTool = !moveTool; $("#hand").classList.toggle("on", moveTool); stage.classList.toggle("hand", moveTool); };
+  $("#play").onclick = () => setAuto(!timer);
+
+  /* page scrubber — jump back to front (or front to back) by clicking or dragging along the bar */
+  const scrub = $("#scrub"), tip = $("#tip"); let sd = false;
+  const scrubIdx = e => { const r = scrub.getBoundingClientRect(); return clamp(Math.round((e.clientX - r.left) / r.width * (NP - 1)), 0, NP - 1); };
+  function showTip(e) {
+    const r = scrub.getBoundingClientRect(), i = scrubIdx(e);
+    tip.style.display = "block"; tip.style.left = clamp(e.clientX - r.left, 24, r.width - 24) + "px"; tip.textContent = "Page " + (i + 1);
+    if (sd) $("#knob").style.left = (i / (NP - 1) * 100) + "%";
+  }
+  scrub.addEventListener("pointerdown", e => { sd = true; scrub.classList.add("drag"); scrub.setPointerCapture(e.pointerId); showTip(e); });
+  scrub.addEventListener("pointermove", e => { if (sd || e.pointerType === "mouse") showTip(e); });
+  scrub.addEventListener("pointerup", e => { if (!sd) return; sd = false; scrub.classList.remove("drag"); tip.style.display = "none"; goPage(scrubIdx(e)); });
+  scrub.addEventListener("pointerleave", () => { if (!sd) tip.style.display = "none"; });
+  $("#web").onclick = () => window.open(CONFIG.websiteUrl, "_blank", "noopener");
+  $("#fs").onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen).call(document.documentElement);
+  };
+  addEventListener("keydown", e => {
+    if (e.key === "Escape") return closeModal();
+    if (modalOpen()) return;
+    const k = e.key;
+    if (k === "ArrowRight" || k === "PageDown") turnNext();
+    else if (k === "ArrowLeft" || k === "PageUp") turnPrev();
+    else if (k === "Home") goPage(0); else if (k === "End") goPage(NP - 1);
+    else if (k === "+" || k === "=") zoomCenter(Z * 1.4);
+    else if (k === "-" || k === "_") zoomCenter(Z / 1.4);
+    else if (k === "0") resetView();
+    else if (k.toLowerCase() === "v") $("#mode").click();
+    else if (k.toLowerCase() === "h") $("#hand").click();
+    else if (k.toLowerCase() === "f") $("#fs").click();
+    else if (k === " " && !e.target.classList.contains("hs")) { e.preventDefault(); setAuto(!timer); }
+  });
+  addEventListener("resize", layout);
+
+  /* ---------- go ---------- */
+  const hm = location.hash.match(/p=(\d+)/);
+  layout();
+  if (hm) { f = fFromPage(clamp(+hm[1] - 1, 0, NP - 1)); renderRest(); }
+  setTimeout(() => document.body.classList.remove("hint"), 7000);
+  if (CONFIG.autoStart) setAuto(true);
+  window.__flipbook = { pages: pagesDef, seed };      // handy for debugging in the console
+})();
+</script>
+</body>
+</html>
